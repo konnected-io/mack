@@ -12,7 +12,7 @@ import {marked} from 'marked';
  * - Supports thematic breaks / dividers
  *
  * Per Slack limitations, these markdown attributes are not completely supported:
- * - Tables: they will be copied but Slack will render them as text
+ * - Tables: rendered as native Slack table blocks (alignment preserved, one table per message)
  * - Block quotes (limited functionality; does not support lists, headings, or images within the block quote)
  *
  * Supports GitHub-flavoured Markdown.

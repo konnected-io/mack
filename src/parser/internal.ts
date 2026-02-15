@@ -4,9 +4,10 @@ import {
   ImageBlock,
   KnownBlock,
   SectionBlock,
+  TableBlock,
 } from '@slack/types';
 import {ListOptions, ParsingOptions} from '../types';
-import {section, divider, header, image} from '../slack';
+import {section, divider, header, image, table} from '../slack';
 import {marked} from 'marked';
 import {XMLParser} from 'fast-xml-parser';
 
@@ -180,44 +181,37 @@ function parseList(
   return section(contents.join('\n'));
 }
 
-function combineBetweenPipes(texts: String[]): string {
-  return `| ${texts.join(' | ')} |`;
-}
-
-function parseTableRows(rows: marked.Tokens.TableCell[][]): string[] {
-  const parsedRows: string[] = [];
-  rows.forEach((row, index) => {
-    const parsedCells = parseTableRow(row);
-    if (index === 1) {
-      const headerRowArray = new Array(parsedCells.length).fill('---');
-      const headerRow = combineBetweenPipes(headerRowArray);
-      parsedRows.push(headerRow);
-    }
-    parsedRows.push(combineBetweenPipes(parsedCells));
-  });
-  return parsedRows;
-}
-
-function parseTableRow(row: marked.Tokens.TableCell[]): String[] {
-  const parsedCells: String[] = [];
-  row.forEach(cell => {
-    parsedCells.push(parseTableCell(cell));
-  });
-  return parsedCells;
-}
-
-function parseTableCell(cell: marked.Tokens.TableCell): String {
+function parseTableCell(
+  cell: marked.Tokens.TableCell
+): {type: 'raw_text'; text: string} {
   const texts = cell.tokens.reduce((accumulator, child) => {
     parsePhrasingContentToStrings(child as PhrasingToken, accumulator);
     return accumulator;
   }, [] as string[]);
-  return texts.join(' ');
+  return {type: 'raw_text', text: texts.join(' ')};
 }
 
-function parseTable(element: marked.Tokens.Table): SectionBlock {
-  const parsedRows = parseTableRows([element.header, ...element.rows]);
+function parseTableRow(
+  row: marked.Tokens.TableCell[]
+): {type: 'raw_text'; text: string}[] {
+  return row.map(cell => parseTableCell(cell));
+}
 
-  return section(`\`\`\`\n${parsedRows.join('\n')}\n\`\`\``);
+function parseTable(element: marked.Tokens.Table): TableBlock {
+  const alignMap: Record<string, 'left' | 'center' | 'right'> = {
+    left: 'left',
+    center: 'center',
+    right: 'right',
+  };
+  const columnSettings = element.align.map(a => ({
+    align: (a && alignMap[a]) || 'left',
+  }));
+
+  const rows = [element.header, ...element.rows].map(row =>
+    parseTableRow(row)
+  );
+
+  return table(rows, columnSettings);
 }
 
 function parseBlockquote(element: marked.Tokens.Blockquote): KnownBlock[] {

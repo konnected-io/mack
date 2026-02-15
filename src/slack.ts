@@ -3,6 +3,7 @@ import type {
   HeaderBlock,
   ImageBlock,
   SectionBlock,
+  TableBlock,
 } from '@slack/types';
 
 const MAX_TEXT_LENGTH = 3000;
@@ -33,6 +34,17 @@ export function header(text: string): HeaderBlock {
       type: 'plain_text',
       text: text.slice(0, MAX_HEADER_LENGTH),
     },
+  };
+}
+
+export function table(
+  rows: {type: 'raw_text'; text: string}[][],
+  columnSettings?: {align?: 'left' | 'center' | 'right'}[]
+): TableBlock {
+  return {
+    type: 'table',
+    rows,
+    column_settings: columnSettings,
   };
 }
 

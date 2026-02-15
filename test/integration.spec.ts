@@ -1,5 +1,6 @@
 import {markdownToBlocks} from '../src';
-import * as slack from '../src/slack';
+import {section, header, image, table} from '../src/slack';
+const slack = {section, header, image, table};
 
 describe('integration with unified', () => {
   it('should parse raw markdown into slack blocks', async () => {
@@ -50,13 +51,22 @@ a **b** _c_ **_d_ e**
       slack.section('• bullet _a_\n• bullet _b_'),
       slack.section('1. number _a_\n2. number _b_'),
       slack.section('• checkbox false\n• checkbox true'),
-      slack.section(
-        '```\n' +
-          '| Syntax | Description |\n' +
-          '| --- | --- |\n' +
-          '| Header | Title |\n' +
-          '| Paragraph | Text |\n' +
-          '```'
+      slack.table(
+        [
+          [
+            {type: 'raw_text', text: 'Syntax'},
+            {type: 'raw_text', text: 'Description'},
+          ],
+          [
+            {type: 'raw_text', text: 'Header'},
+            {type: 'raw_text', text: 'Title'},
+          ],
+          [
+            {type: 'raw_text', text: 'Paragraph'},
+            {type: 'raw_text', text: 'Text'},
+          ],
+        ],
+        [{align: 'left'}, {align: 'left'}]
       ),
     ];
 
