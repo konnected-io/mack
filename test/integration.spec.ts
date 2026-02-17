@@ -48,9 +48,75 @@ a **b** _c_ **_d_ e**
       ),
       slack.section('> block quote *a*\n> block quote b'),
       slack.section('<https://apple.com|link> '),
-      slack.section('• bullet _a_\n• bullet _b_'),
-      slack.section('1. number _a_\n2. number _b_'),
-      slack.section('• checkbox false\n• checkbox true'),
+      {
+        type: 'rich_text',
+        elements: [
+          {
+            type: 'rich_text_list',
+            style: 'bullet',
+            elements: [
+              {
+                type: 'rich_text_section',
+                elements: [
+                  {type: 'text', text: 'bullet '},
+                  {type: 'text', text: 'a', style: {italic: true}},
+                ],
+              },
+              {
+                type: 'rich_text_section',
+                elements: [
+                  {type: 'text', text: 'bullet '},
+                  {type: 'text', text: 'b', style: {italic: true}},
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      {
+        type: 'rich_text',
+        elements: [
+          {
+            type: 'rich_text_list',
+            style: 'ordered',
+            elements: [
+              {
+                type: 'rich_text_section',
+                elements: [
+                  {type: 'text', text: 'number '},
+                  {type: 'text', text: 'a', style: {italic: true}},
+                ],
+              },
+              {
+                type: 'rich_text_section',
+                elements: [
+                  {type: 'text', text: 'number '},
+                  {type: 'text', text: 'b', style: {italic: true}},
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      {
+        type: 'rich_text',
+        elements: [
+          {
+            type: 'rich_text_list',
+            style: 'bullet',
+            elements: [
+              {
+                type: 'rich_text_section',
+                elements: [{type: 'text', text: 'checkbox false'}],
+              },
+              {
+                type: 'rich_text_section',
+                elements: [{type: 'text', text: 'checkbox true'}],
+              },
+            ],
+          },
+        ],
+      },
       slack.table(
         [
           [

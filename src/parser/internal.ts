@@ -3,6 +3,10 @@ import {
   HeaderBlock,
   ImageBlock,
   KnownBlock,
+  RichTextBlock,
+  RichTextElement,
+  RichTextList,
+  RichTextSection,
   SectionBlock,
   TableBlock,
 } from '@slack/types';
@@ -149,36 +153,155 @@ function parseCode(element: marked.Tokens.Code): SectionBlock {
   return section(`\`\`\`\n${element.text}\n\`\`\``);
 }
 
-function parseList(
+type RichTextStyle = {
+  bold?: boolean;
+  italic?: boolean;
+  strike?: boolean;
+  code?: boolean;
+};
+
+function parseRichTextElements(
+  element: PhrasingToken,
+  inheritedStyle: RichTextStyle = {}
+): RichTextElement[] {
+  switch (element.type) {
+    case 'strong':
+      return element.tokens.flatMap(child =>
+        parseRichTextElements(child as PhrasingToken, {
+          ...inheritedStyle,
+          bold: true,
+        })
+      );
+
+    case 'em':
+      return element.tokens.flatMap(child =>
+        parseRichTextElements(child as PhrasingToken, {
+          ...inheritedStyle,
+          italic: true,
+        })
+      );
+
+    case 'del':
+      return element.tokens.flatMap(child =>
+        parseRichTextElements(child as PhrasingToken, {
+          ...inheritedStyle,
+          strike: true,
+        })
+      );
+
+    case 'codespan': {
+      const style = {...inheritedStyle, code: true};
+      return [{type: 'text', text: element.text, style}];
+    }
+
+    case 'link': {
+      const linkText = element.tokens
+        .flatMap(child => parsePlainText(child as PhrasingToken))
+        .join('');
+      const hasStyle = Object.keys(inheritedStyle).length > 0;
+      return [
+        {
+          type: 'link',
+          url: element.href,
+          text: linkText,
+          ...(hasStyle && {style: inheritedStyle}),
+        } as RichTextElement,
+      ];
+    }
+
+    case 'text': {
+      const hasStyle = Object.keys(inheritedStyle).length > 0;
+      return [
+        {
+          type: 'text',
+          text: element.text,
+          ...(hasStyle && {style: inheritedStyle}),
+        },
+      ];
+    }
+
+    case 'br':
+      return [{type: 'text', text: '\n'}];
+
+    case 'image':
+      return [{type: 'text', text: element.title ?? element.href}];
+
+    case 'html':
+      return [{type: 'text', text: element.raw}];
+
+    default:
+      return [];
+  }
+}
+
+function parseListItemRichText(
+  item: marked.Tokens.ListItem
+): RichTextSection {
+  const paragraph = item.tokens[0] as marked.Tokens.Text;
+  let elements: RichTextElement[] = [];
+
+  if (paragraph && paragraph.type === 'text' && paragraph.tokens?.length) {
+    elements = paragraph.tokens.flatMap(child =>
+      parseRichTextElements(child as PhrasingToken)
+    );
+  } else if (paragraph) {
+    elements = [{type: 'text', text: paragraph.text || ''}];
+  }
+
+  return {type: 'rich_text_section', elements};
+}
+
+function flattenListToRuns(
   element: marked.Tokens.List,
-  options: ListOptions = {}
-): SectionBlock {
-  let index = 0;
-  const contents = element.items.map(item => {
-    const paragraph = item.tokens[0] as marked.Tokens.Text;
-    if (!paragraph || paragraph.type !== 'text' || !paragraph.tokens?.length) {
-      return paragraph?.text || '';
+  depth: number = 0
+): {style: 'bullet' | 'ordered'; indent: number; section: RichTextSection}[] {
+  const runs: {
+    style: 'bullet' | 'ordered';
+    indent: number;
+    section: RichTextSection;
+  }[] = [];
+  const style = element.ordered ? 'ordered' : 'bullet';
+
+  for (const item of element.items) {
+    runs.push({style, indent: depth, section: parseListItemRichText(item)});
+
+    // Process nested lists within this item
+    for (let i = 1; i < item.tokens.length; i++) {
+      const token = item.tokens[i];
+      if (token.type === 'list') {
+        runs.push(
+          ...flattenListToRuns(token as marked.Tokens.List, depth + 1)
+        );
+      }
     }
+  }
 
-    const text = paragraph.tokens
-      .filter(
-        (child): child is Exclude<PhrasingToken, marked.Tokens.Image> =>
-          child.type !== 'image'
-      )
-      .flatMap(parseMrkdwn)
-      .join('');
+  return runs;
+}
 
-    if (element.ordered) {
-      index += 1;
-      return `${index}. ${text}`;
-    } else if (item.checked !== null && item.checked !== undefined) {
-      return `${options.checkboxPrefix?.(item.checked) ?? '• '}${text}`;
+function parseList(element: marked.Tokens.List): RichTextBlock {
+  const runs = flattenListToRuns(element);
+
+  // Group consecutive runs with the same style and indent into rich_text_list elements
+  const listElements: RichTextList[] = [];
+  for (const run of runs) {
+    const last = listElements[listElements.length - 1];
+    if (last && last.style === run.style && (last.indent ?? 0) === run.indent) {
+      last.elements.push(run.section);
     } else {
-      return `• ${text}`;
+      const listEl: RichTextList = {
+        type: 'rich_text_list',
+        style: run.style,
+        elements: [run.section],
+      };
+      if (run.indent > 0) {
+        listEl.indent = run.indent;
+      }
+      listElements.push(listEl);
     }
-  });
+  }
 
-  return section(contents.join('\n'));
+  return {type: 'rich_text', elements: listElements};
 }
 
 function parseTableCell(
@@ -268,7 +391,7 @@ function parseToken(
       return parseBlockquote(token);
 
     case 'list':
-      return [parseList(token, options.lists)];
+      return [parseList(token)];
 
     case 'table':
       return [parseTable(token)];
